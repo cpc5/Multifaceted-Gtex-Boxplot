@@ -1,0 +1,47 @@
+---
+title: "gtexWFS1"
+author: "CPC"
+date: "March 6, 2016"
+output: html_document
+---
+library("ggplot2")
+library("dplyr")
+library("tidyr")
+library("GenABEL")
+
+```{r}
+##Call expression data
+gtex = read.table('WFS1_exp.txt', skip=2, colClasses=c('character, 'character', rep('numeric', 9590)),stringsAsFactors=F, header=T)
+
+##Call sample data and tissues
+samples <- read.delim("~/Desktop/GTEx_prj_9100/phs000424.v5.pht002743.v5.p1.c1.GTEx_Sample_Attributes.GRU.txt", comment.char="#")
+
+multi <- read.delim("~/Desktop/GTEx_prj_9100/phs000424.v5.pht002741.v5.p1.GTEx_Sample.MULTI.txt", comment.char="#")
+
+geno <- read.csv("~/Desktop/GTEx_prj_9100/phg000219.v4.GTEx_Pilot_Illumina5M.genotype-calls-matrixfmt.c1/testgeno.raw", sep="")
+
+##Pull only SAMPID, and tissues
+
+samples = samples %>% select(SAMPID, primary.tissue=SMTS, tissues=SMTSD)
+
+##Merge Expression data with tissue IDs
+
+gtex.bysample = gtex %>% 
++     gather(SAMPID, expression, -Name, -Description) %>% 
++     mutate(SAMPID=gsub('\\.', '-', SAMPID)) %>% 
++     left_join(samples)
+
+selected.tissues = gtex.bysample %>% filter(Description=='WFS1', tissues %in% c("Skin - Sun Exposed (Lower leg)", "Muscle - Skeletal", "Thyroid", "Brain - Cerebellar Hemisphere", "Nerve - Tibial"))
+
+selected.tissuesSUB <- left_join(selected.tissues,multi, by = "SAMPID")
+
+selected.tissuesGeno <- left_join(selected.tissuesSUB,geno, by = "SUBJID")
+
+## Remove 'NA'
+row.has.na <- apply(selected.tissuesGeno, 1, function(x){any(is.na(x))})
++selected.tissuesGeno.no.NA <- selected.tissuesGeno[!row.has.na,]
+##Make plot 
+
+ggplot(data=selected.tissuesGeno.no.NA, aes(x=factor(rs62283056 ,levels = c(0,1,2)), y=rntransform(expression))) + geom_boxplot() + geom_point(position = position_jitter(width = 0.2)) +facet_wrap(~tissues, scales="free") +theme_bw(15) + scale_x_discrete(labels=c("GG","CG","CC")) + xlab('rs62283056 genotype')+ylab('WFS1 Expression')
+
+
